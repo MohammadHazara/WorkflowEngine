@@ -17,3 +17,5 @@ we are using entity framework code first to design and versioning the database
 use sql-lite for database
 
 use readable method names and use summary comments to describe the implemented method
+
+keep ARCHITECTURE.md and README.md files updated when adding new features

@@ -19,6 +19,11 @@ public sealed class WorkflowDbContext : DbContext
     public DbSet<Step> Steps { get; set; } = null!;
 
     /// <summary>
+    /// Gets or sets the WorkflowExecutions DbSet
+    /// </summary>
+    public DbSet<WorkflowExecution> WorkflowExecutions { get; set; } = null!;
+
+    /// <summary>
     /// Initializes a new instance of the WorkflowDbContext class
     /// </summary>
     /// <param name="options">The DbContext options</param>
@@ -34,6 +39,7 @@ public sealed class WorkflowDbContext : DbContext
     {
         ConfigureWorkflowEntity(modelBuilder);
         ConfigureStepEntity(modelBuilder);
+        ConfigureWorkflowExecutionEntity(modelBuilder);
         
         base.OnModelCreating(modelBuilder);
     }
@@ -92,6 +98,40 @@ public sealed class WorkflowDbContext : DbContext
             entity.Ignore(s => s.OnSuccess);
             entity.Ignore(s => s.OnFailure);
             entity.Ignore(s => s.ExecuteFunction);
+        });
+    }
+
+    /// <summary>
+    /// Configures the WorkflowExecution entity
+    /// </summary>
+    /// <param name="modelBuilder">The model builder</param>
+    private static void ConfigureWorkflowExecutionEntity(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<WorkflowExecution>(entity =>
+        {
+            entity.HasKey(we => we.Id);
+            
+            entity.Property(we => we.WorkflowId)
+                .IsRequired();
+                
+            entity.Property(we => we.Status)
+                .IsRequired()
+                .HasConversion<int>();
+                
+            entity.Property(we => we.StartedAt)
+                .IsRequired();
+                
+            entity.Property(we => we.ErrorMessage)
+                .HasMaxLength(2000);
+                
+            entity.Property(we => we.ProgressPercentage)
+                .IsRequired()
+                .HasDefaultValue(0);
+
+            entity.HasOne(we => we.Workflow)
+                .WithMany()
+                .HasForeignKey(we => we.WorkflowId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
     }
 
