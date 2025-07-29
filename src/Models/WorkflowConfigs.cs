@@ -132,3 +132,83 @@ public sealed class ApiUploadConfig
     /// </summary>
     public string? AuthToken { get; set; }
 }
+
+/// <summary>
+/// Configuration for SFTP upload step
+/// </summary>
+public sealed class SftpUploadConfig
+{
+    /// <summary>
+    /// Gets or sets the SFTP server hostname or IP address
+    /// </summary>
+    [Required]
+    public string Host { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets the SFTP server port (default: 22)
+    /// </summary>
+    public int Port { get; set; } = 22;
+
+    /// <summary>
+    /// Gets or sets the username for SFTP authentication
+    /// </summary>
+    [Required]
+    public string Username { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets the password for SFTP authentication
+    /// </summary>
+    public string? Password { get; set; }
+
+    /// <summary>
+    /// Gets or sets the private key file path for key-based authentication
+    /// </summary>
+    public string? PrivateKeyPath { get; set; }
+
+    /// <summary>
+    /// Gets or sets the private key passphrase if the key is encrypted
+    /// </summary>
+    public string? PrivateKeyPassphrase { get; set; }
+
+    /// <summary>
+    /// Gets or sets the local file path to upload
+    /// </summary>
+    [Required]
+    public string LocalFilePath { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets the remote directory path on the SFTP server
+    /// </summary>
+    [Required]
+    public string RemoteDirectoryPath { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets the remote file name (if different from local file name)
+    /// </summary>
+    public string? RemoteFileName { get; set; }
+
+    /// <summary>
+    /// Gets or sets whether to overwrite existing files on the server
+    /// </summary>
+    public bool OverwriteExisting { get; set; } = true;
+
+    /// <summary>
+    /// Gets or sets the connection timeout in seconds
+    /// </summary>
+    public int ConnectionTimeoutSeconds { get; set; } = 30;
+
+    /// <summary>
+    /// Gets or sets whether to create remote directories if they don't exist
+    /// </summary>
+    public bool CreateRemoteDirectories { get; set; } = true;
+
+    /// <summary>
+    /// Gets or sets whether to verify the SSH host key
+    /// </summary>
+    public bool VerifyHostKey { get; set; } = false;
+
+    /// <summary>
+    /// Gets or sets the expected SSH host key fingerprint for verification
+    /// </summary>
+    public string? HostKeyFingerprint { get; set; }
+}

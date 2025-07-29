@@ -1,7 +1,6 @@
 # Workflow Engine
 
-## Overview
-The Workflow Engine is a comprehensive .NET 9.0 application designed to manage and execute workflows consisting of multiple steps. It features a modern web-based dashboard for monitoring and managing workflows in real-time, with support for execution tracking, progress monitoring, and workflow management. **NEW**: Now includes specialized API workflow capabilities for data fetching, file processing, and upload automation.
+A powerful, enterprise-grade workflow management system built with .NET 9.0 and C# 13. Features a comprehensive web dashboard, robust API workflow system with SFTP support, and advanced performance optimization for large-scale operations.
 
 ## Features
 
@@ -12,28 +11,28 @@ The Workflow Engine is a comprehensive .NET 9.0 application designed to manage a
 - Robust error handling and retry mechanisms
 - Performance optimization for large-scale operations
 
-### API Workflow System (NEW)
+### API Workflow System
 - **API Data Fetching**: Retrieve data from REST APIs with authentication support
 - **File Processing**: Create JSON files from API responses with validation
 - **Compression**: ZIP file creation with configurable compression levels
 - **File Upload**: Automated upload to target APIs with progress tracking
+- **SFTP Support**: Secure file transfer via SFTP with key-based and password authentication
 - **Workflow Builder**: Easy-to-use builder pattern for common API workflows
 - **Performance Optimized**: Handles large datasets efficiently with streaming and async operations
 
 ### Web Dashboard
-- **Real-time monitoring**: Live updates of workflow executions every 30 seconds
-- **Statistics overview**: Dashboard with key metrics (total workflows, success rate, etc.)
-- **Workflow management**: Create, update, delete, and execute workflows
-- **Execution tracking**: Monitor running workflows with progress bars
-- **History view**: Browse execution history with pagination
-- **Interactive UI**: Modern Bootstrap-based responsive interface
+- Real-time workflow monitoring and execution tracking
+- Interactive dashboard with Bootstrap 5 UI
+- Workflow statistics and performance metrics
+- Progress tracking with live updates
+- Error reporting and debugging tools
+- Responsive design for mobile and desktop
 
-### API Endpoints
-- RESTful API for all dashboard operations
-- **NEW**: API workflow endpoints for automated data processing
-- Swagger documentation available in development mode
-- CORS support for frontend integration
-- Comprehensive error handling and logging
+### Database Integration
+- Entity Framework Core with SQLite
+- User management with secure password hashing
+- Workflow execution history and audit trails
+- Performance metrics storage and analysis
 
 ## Technology Stack
 - **.NET 9.0** with C# 13 syntax
@@ -41,34 +40,60 @@ The Workflow Engine is a comprehensive .NET 9.0 application designed to manage a
 - **Entity Framework Core** with SQLite database
 - **HttpClient** with retry policies and timeout handling
 - **System.IO.Compression** for ZIP file operations
+- **SSH.NET** for secure SFTP file transfers
 - **Bootstrap 5** and **Font Awesome** for UI
 - **Dependency Injection** following SOLID principles
 - **Structured logging** with performance monitoring
 
-## Getting Started
+## Quick Start
 
 ### Prerequisites
 - .NET 9.0 SDK or later
-- A modern web browser
-- Code editor (Visual Studio Code recommended)
+- Visual Studio 2022 or VS Code (optional)
 
 ### Installation
-1. Clone the repository:
+
+1. **Clone the repository**:
    ```bash
-   git clone <repository-url>
+   git clone https://github.com/your-username/WorkflowEngine.git
    cd WorkflowEngine
    ```
 
-2. Restore dependencies:
-   ```bash
-   cd src
-   dotnet restore
-   ```
-
-3. Build the application:
+2. **Build the solution**:
    ```bash
    dotnet build
    ```
+
+3. **Run database migrations**:
+   ```bash
+   cd src
+   dotnet ef database update
+   ```
+
+## Getting Started
+
+### Basic Workflow Creation
+```csharp
+// Create a simple workflow
+var workflow = new Workflow("Data Processing", "Processes customer data");
+
+var step1 = new Step(1, "Validate Data", async () => {
+    // Your validation logic here
+    return true;
+});
+
+var step2 = new Step(2, "Transform Data", async () => {
+    // Your transformation logic here
+    return true;
+});
+
+workflow.AddStep(step1);
+workflow.AddStep(step2);
+
+// Execute the workflow
+var executor = new WorkflowExecutor();
+var result = await executor.ExecuteWorkflowAsync(workflow);
+```
 
 ### Running the Application
 
@@ -83,14 +108,14 @@ The application will start and be available at:
 - **API**: http://localhost:5000/api (REST endpoints)
 - **Swagger**: http://localhost:5000/swagger (API documentation, dev mode only)
 
-#### Run API Workflow Examples (NEW)
+#### Run API Workflow Examples
 ```bash
 cd examples
 dotnet run
 ```
 
 This console application demonstrates:
-1. **Complete API-to-File-to-Upload Workflow**: Fetches data from JSONPlaceholder API, creates JSON file, compresses to ZIP, and uploads
+1. **Complete API-to-File-to-SFTP Workflow**: Fetches data from JSONPlaceholder API, creates JSON file, compresses to ZIP, and uploads via SFTP
 2. **Simple API-to-File Workflow**: Basic data fetching and file creation
 3. **Performance Test**: Large dataset processing with timing metrics
 
@@ -101,71 +126,28 @@ This console application demonstrates:
 - Cancel running executions
 - View execution history and error details
 - Create new workflows through the web interface
-- **NEW**: Execute API workflows programmatically
-
-### Sample Data
-The application automatically seeds the database with sample workflows and executions on first run, including:
-- 6 different workflow types (data processing, notifications, reports, etc.)
-- 25 sample executions with various statuses
-- Realistic execution times and error scenarios
-
-### Database
-- Uses SQLite database (`workflow.db`) for persistence
-- Entity Framework Code First approach
-- Automatic database creation and migration
-- Sample data seeding for demonstration
-
-## API Usage
-
-### Dashboard Statistics
-```http
-GET /api/dashboard/stats
-```
-
-### Workflow Management
-```http
-GET /api/workflows?page=1&pageSize=10
-POST /api/workflows
-PUT /api/workflows/{id}
-DELETE /api/workflows/{id}
-```
-
-### Workflow Execution
-```http
-POST /api/workflows/{id}/execute
-GET /api/workflows/{id}/executions
-POST /api/executions/{id}/cancel
-```
-
-### API Workflows (NEW)
-```http
-POST /api/api-workflow/execute
-POST /api/api-workflow/fetch-and-save
-POST /api/api-workflow/compress-and-upload
-```
-
-### Recent Executions
-```http
-GET /api/dashboard/recent-executions?limit=20
-```
+- Execute API workflows programmatically with SFTP support
 
 ## API Workflow Examples
 
-### Complete API-to-File-to-Upload Pipeline
+### Complete API-to-File-to-SFTP Pipeline
 ```csharp
 var apiDataService = new ApiDataService(httpClient);
-var workflowBuilder = new ApiWorkflowBuilder(apiDataService);
+var sftpService = new SftpService();
+var workflowBuilder = new ApiWorkflowBuilder(apiDataService, sftpService);
 
-var (apiConfig, fileConfig, zipConfig, uploadConfig) = workflowBuilder.CreateDefaultConfigurations(
+var (apiConfig, fileConfig, zipConfig, sftpConfig) = workflowBuilder.CreateSftpConfigurations(
     apiUrl: "https://api.example.com/data",
     outputDirectory: "/path/to/output",
-    uploadUrl: "https://upload.example.com/api",
-    authToken: "Bearer your-token"
+    sftpHost: "sftp.example.com",
+    sftpUsername: "username",
+    sftpPassword: "password", // or use key-based auth
+    sftpRemoteDirectory: "/uploads"
 );
 
-var workflow = workflowBuilder.CreateApiToFileToUploadWorkflow(
+var workflow = workflowBuilder.CreateApiToFileToSftpWorkflow(
     "Data Processing Pipeline",
-    apiConfig, fileConfig, zipConfig, uploadConfig
+    apiConfig, fileConfig, zipConfig, sftpConfig
 );
 
 // Execute with progress tracking
@@ -174,6 +156,35 @@ foreach (var step in workflow.GetSteps())
     var success = await step.ExecuteAsync();
     if (!success) break;
 }
+```
+
+### SFTP Authentication Options
+
+#### Password Authentication
+```csharp
+var sftpConfig = new SftpUploadConfig
+{
+    Host = "sftp.example.com",
+    Username = "myuser",
+    Password = "mypassword",
+    LocalFilePath = "data.zip",
+    RemoteDirectoryPath = "/uploads"
+};
+```
+
+#### Key-Based Authentication
+```csharp
+var sftpConfig = new SftpUploadConfig
+{
+    Host = "sftp.example.com",
+    Username = "myuser",
+    PrivateKeyPath = "/path/to/private/key",
+    PrivateKeyPassphrase = "key-passphrase", // if key is encrypted
+    LocalFilePath = "data.zip",
+    RemoteDirectoryPath = "/uploads",
+    VerifyHostKey = true,
+    HostKeyFingerprint = "aa:bb:cc:dd:ee:ff..." // for security
+};
 ```
 
 ### Simple API Data Fetching
@@ -194,7 +205,7 @@ var data = await apiDataService.FetchDataAsync(apiConfig);
 var success = await apiDataService.CreateJsonFileAsync(data, fileConfig);
 ```
 
-### File Compression and Upload
+### File Compression and SFTP Upload
 ```csharp
 var zipConfig = new ZipCompressionConfig
 {
@@ -206,45 +217,18 @@ var zipConfig = new ZipCompressionConfig
 
 var compressed = await apiDataService.CompressFileAsync(zipConfig);
 
-var uploadConfig = new ApiUploadConfig
+var sftpConfig = new SftpUploadConfig
 {
-    UploadUrl = "https://api.example.com/upload",
-    FilePath = "data.zip",
-    FileFieldName = "file",
-    AdditionalFields = new Dictionary<string, string>
-    {
-        { "description", "Processed data file" }
-    }
+    Host = "sftp.example.com",
+    Username = "user",
+    Password = "pass",
+    LocalFilePath = "data.zip",
+    RemoteDirectoryPath = "/uploads",
+    CreateRemoteDirectories = true
 };
 
-var uploaded = await apiDataService.UploadFileAsync(uploadConfig);
+var uploaded = await sftpService.UploadFileAsync(sftpConfig);
 ```
-
-## Development
-
-### Running Tests
-```bash
-cd tests
-dotnet test
-```
-
-### Architecture
-The application follows SOLID principles with:
-- **Repository pattern** through Entity Framework
-- **Service layer** for business logic
-- **Dependency injection** for loose coupling
-- **Interface segregation** for testability
-- **Performance optimization** with async/await patterns
-- **NEW**: Specialized API services with retry policies and error handling
-
-### Key Components
-- `IDashboardService`: Core dashboard operations
-- `IWorkflowExecutor`: Workflow execution engine
-- `IStepHandler`: Individual step processing
-- `WorkflowDbContext`: Database access layer
-- `DataSeedingService`: Sample data management
-- **NEW**: `ApiDataService`: API operations and file processing
-- **NEW**: `ApiWorkflowBuilder`: Workflow creation utilities
 
 ## Performance Considerations
 - Optimized database queries with `AsNoTracking()`
@@ -252,23 +236,42 @@ The application follows SOLID principles with:
 - Background execution with cancellation support
 - Efficient aggregation queries for statistics
 - Memory-conscious data processing
-- **NEW**: Streaming file operations for large datasets
-- **NEW**: Configurable HTTP timeouts and retry policies
-- **NEW**: Compression optimization for bandwidth efficiency
+- Streaming file operations for large datasets
+- Configurable HTTP timeouts and retry policies
+- Compression optimization for bandwidth efficiency
+- SFTP connection pooling and reuse
+- Progress tracking for long-running operations
 
 ## Use Cases
 
 ### API Data Processing Workflows
-- **Data Migration**: Fetch data from legacy APIs and upload to new systems
-- **Data Synchronization**: Regular data syncing between systems
-- **Report Generation**: Collect data from multiple APIs, process, and distribute
-- **Backup Operations**: Download data, compress, and upload to storage services
-- **ETL Pipelines**: Extract from APIs, transform to JSON, load to target systems
+- **Data Migration**: Fetch data from legacy APIs and upload to new systems via SFTP
+- **Data Synchronization**: Regular data syncing between systems with secure file transfer
+- **Report Generation**: Collect data from multiple APIs, process, and distribute via SFTP
+- **Backup Operations**: Download data, compress, and upload to secure SFTP storage
+- **ETL Pipelines**: Extract from APIs, transform to JSON, load to target systems via SFTP
 
 ### Real-World Examples
-1. **E-commerce Data Sync**: Fetch product data from supplier APIs, format as JSON, compress, and upload to inventory system
-2. **Financial Report Automation**: Collect transaction data from payment APIs, generate reports, compress, and send to accounting system
-3. **IoT Data Collection**: Gather sensor data from device APIs, process into standardized format, and upload to analytics platform
+1. **E-commerce Data Sync**: Fetch product data from supplier APIs, format as JSON, compress, and upload to inventory system via SFTP
+2. **Financial Report Automation**: Collect transaction data from payment APIs, generate reports, compress, and send to accounting system via secure transfer
+3. **IoT Data Collection**: Gather sensor data from device APIs, process into standardized format, and upload to analytics platform via SFTP
+4. **Healthcare Data Exchange**: Securely transfer patient data between systems using SFTP with encryption
+5. **Log File Processing**: Collect, compress, and securely transfer application logs to centralized storage
+
+## Security Features
+
+### SFTP Security
+- **SSH Key Authentication**: Support for RSA, DSA, and ECDSA keys
+- **Host Key Verification**: Prevent man-in-the-middle attacks
+- **Encrypted File Transfer**: All data encrypted in transit
+- **Connection Timeout Controls**: Prevent hanging connections
+- **Credential Management**: Secure handling of passwords and keys
+
+### General Security
+- **Input Validation**: Comprehensive validation of all inputs
+- **SQL Injection Prevention**: Parameterized queries and Entity Framework protection
+- **Password Security**: PBKDF2 hashing with salt
+- **Error Handling**: Sanitized error messages to prevent information disclosure
 
 ## Contributing
 1. Fork the repository
@@ -279,25 +282,7 @@ The application follows SOLID principles with:
 6. Submit a pull request
 
 ## License
-This project is licensed under the MIT License. See the LICENSE file for more details.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## Troubleshooting
-
-### Common Issues
-1. **Port already in use**: Change the port in `dotnet run --urls "http://localhost:5001"`
-2. **Database errors**: Delete `workflow.db` to reset the database
-3. **CORS issues**: Ensure the API is running on the same origin as the frontend
-4. **API timeout errors**: Increase timeout values in API configurations
-5. **File permission errors**: Ensure write permissions for output directories
-
-### Development Mode
-- Enable detailed logging by setting `ASPNETCORE_ENVIRONMENT=Development`
-- Access Swagger UI at `/swagger` for API testing
-- Check console logs for detailed error information
-- Use the examples console application for testing API workflows
-
-### Performance Tuning
-- Adjust HTTP client timeout settings for your API endpoints
-- Configure compression levels based on file size vs. speed requirements
-- Use appropriate retry policies for unreliable network connections
-- Monitor memory usage when processing large datasets
+## Support
+For questions, issues, or contributions, please open an issue on GitHub.

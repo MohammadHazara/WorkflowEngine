@@ -20,7 +20,8 @@ public static class ApiWorkflowExamples
 
         using var httpClient = new HttpClient();
         var apiDataService = new ApiDataService(httpClient);
-        var workflowBuilder = new ApiWorkflowBuilder(apiDataService);
+        var sftpService = new SftpService();
+        var workflowBuilder = new ApiWorkflowBuilder(apiDataService, sftpService);
 
         // Create configurations for a real API example
         var (apiConfig, fileConfig, zipConfig, uploadConfig) = workflowBuilder.CreateDefaultConfigurations(
@@ -115,7 +116,8 @@ public static class ApiWorkflowExamples
 
         using var httpClient = new HttpClient();
         var apiDataService = new ApiDataService(httpClient);
-        var workflowBuilder = new ApiWorkflowBuilder(apiDataService);
+        var sftpService = new SftpService();
+        var workflowBuilder = new ApiWorkflowBuilder(apiDataService, sftpService);
 
         var apiConfig = new ApiDataFetchConfig
         {
@@ -195,7 +197,8 @@ public static class ApiWorkflowExamples
 
         using var httpClient = new HttpClient();
         var apiDataService = new ApiDataService(httpClient);
-        var workflowBuilder = new ApiWorkflowBuilder(apiDataService);
+        var sftpService = new SftpService();
+        var workflowBuilder = new ApiWorkflowBuilder(apiDataService, sftpService);
 
         var outputDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Desktop), "WorkflowEngine_Output");
         
@@ -253,7 +256,8 @@ public static class ApiWorkflowExamples
         
         using var httpClient = new HttpClient();
         var apiDataService = new ApiDataService(httpClient);
-        var workflowBuilder = new ApiWorkflowBuilder(apiDataService);
+        var sftpService = new SftpService();
+        var workflowBuilder = new ApiWorkflowBuilder(apiDataService, sftpService);
 
         // Fetch a larger dataset for performance testing
         var (apiConfig, fileConfig, zipConfig, uploadConfig) = workflowBuilder.CreateDefaultConfigurations(

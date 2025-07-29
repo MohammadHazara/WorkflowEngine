@@ -9,17 +9,144 @@ namespace WorkflowEngine.Services;
 public sealed class ApiWorkflowBuilder
 {
     private readonly ApiDataService _apiDataService;
+    private readonly SftpService _sftpService;
     private readonly ILogger<ApiWorkflowBuilder>? _logger;
 
     /// <summary>
     /// Initializes a new instance of the ApiWorkflowBuilder class
     /// </summary>
     /// <param name="apiDataService">Service for API data operations</param>
+    /// <param name="sftpService">Service for SFTP operations</param>
     /// <param name="logger">Optional logger for workflow building operations</param>
-    public ApiWorkflowBuilder(ApiDataService apiDataService, ILogger<ApiWorkflowBuilder>? logger = null)
+    public ApiWorkflowBuilder(ApiDataService apiDataService, SftpService sftpService, ILogger<ApiWorkflowBuilder>? logger = null)
     {
         _apiDataService = apiDataService ?? throw new ArgumentNullException(nameof(apiDataService));
+        _sftpService = sftpService ?? throw new ArgumentNullException(nameof(sftpService));
         _logger = logger;
+    }
+
+    /// <summary>
+    /// Creates a complete API-to-file-to-SFTP workflow
+    /// </summary>
+    /// <param name="workflowName">Name of the workflow</param>
+    /// <param name="apiConfig">Configuration for API data fetching</param>
+    /// <param name="fileConfig">Configuration for file creation</param>
+    /// <param name="zipConfig">Configuration for ZIP compression</param>
+    /// <param name="sftpConfig">Configuration for SFTP upload</param>
+    /// <returns>A configured workflow ready for execution</returns>
+    public Workflow CreateApiToFileToSftpWorkflow(
+        string workflowName,
+        ApiDataFetchConfig apiConfig,
+        FileCreationConfig fileConfig,
+        ZipCompressionConfig zipConfig,
+        SftpUploadConfig sftpConfig)
+    {
+        ArgumentNullException.ThrowIfNull(workflowName);
+        ArgumentNullException.ThrowIfNull(apiConfig);
+        ArgumentNullException.ThrowIfNull(fileConfig);
+        ArgumentNullException.ThrowIfNull(zipConfig);
+        ArgumentNullException.ThrowIfNull(sftpConfig);
+
+        _logger?.LogInformation("Creating API-to-file-to-SFTP workflow: {WorkflowName}", workflowName);
+
+        var workflow = new Workflow(workflowName, "Fetches data from API, creates JSON file, compresses to ZIP, and uploads via SFTP");
+
+        // Shared data storage for passing data between steps
+        string? fetchedData = null;
+
+        // Step 1: Fetch data from API
+        var fetchStep = new Step(1, "Fetch API Data",
+            executeFunction: async () =>
+            {
+                try
+                {
+                    fetchedData = await _apiDataService.FetchDataAsync(apiConfig);
+                    return !string.IsNullOrEmpty(fetchedData);
+                }
+                catch (Exception ex)
+                {
+                    _logger?.LogError(ex, "Failed to fetch API data");
+                    return false;
+                }
+            },
+            onSuccess: () =>
+            {
+                _logger?.LogInformation("Successfully fetched API data");
+                return Task.FromResult(true);
+            },
+            onFailure: () =>
+            {
+                _logger?.LogError("Failed to fetch API data");
+                return Task.FromResult(false);
+            });
+
+        // Step 2: Create JSON file
+        var createFileStep = new Step(2, "Create JSON File",
+            executeFunction: async () =>
+            {
+                if (string.IsNullOrEmpty(fetchedData))
+                {
+                    _logger?.LogError("No data available to create file");
+                    return false;
+                }
+
+                return await _apiDataService.CreateJsonFileAsync(fetchedData, fileConfig);
+            },
+            onSuccess: () =>
+            {
+                _logger?.LogInformation("Successfully created JSON file: {FilePath}", fileConfig.OutputPath);
+                return Task.FromResult(true);
+            },
+            onFailure: () =>
+            {
+                _logger?.LogError("Failed to create JSON file");
+                return Task.FromResult(false);
+            });
+
+        // Step 3: Compress file to ZIP
+        var compressStep = new Step(3, "Compress to ZIP",
+            executeFunction: async () =>
+            {
+                return await _apiDataService.CompressFileAsync(zipConfig);
+            },
+            onSuccess: () =>
+            {
+                _logger?.LogInformation("Successfully compressed file to ZIP: {ZipPath}", zipConfig.ZipFilePath);
+                return Task.FromResult(true);
+            },
+            onFailure: () =>
+            {
+                _logger?.LogError("Failed to compress file to ZIP");
+                return Task.FromResult(false);
+            });
+
+        // Step 4: Upload ZIP file via SFTP
+        var sftpUploadStep = new Step(4, "Upload via SFTP",
+            executeFunction: async () =>
+            {
+                return await _sftpService.UploadFileAsync(sftpConfig);
+            },
+            onSuccess: () =>
+            {
+                _logger?.LogInformation("Successfully uploaded ZIP file via SFTP: {FilePath}", sftpConfig.LocalFilePath);
+                return Task.FromResult(true);
+            },
+            onFailure: () =>
+            {
+                _logger?.LogError("Failed to upload ZIP file via SFTP");
+                return Task.FromResult(false);
+            });
+
+        // Add steps to workflow
+        workflow.AddStep(fetchStep);
+        workflow.AddStep(createFileStep);
+        workflow.AddStep(compressStep);
+        workflow.AddStep(sftpUploadStep);
+
+        _logger?.LogInformation("Created workflow '{WorkflowName}' with {StepCount} steps", 
+            workflowName, workflow.GetStepCount());
+
+        return workflow;
     }
 
     /// <summary>
@@ -235,6 +362,118 @@ public sealed class ApiWorkflowBuilder
         workflow.AddStep(uploadStep);
 
         return workflow;
+    }
+
+    /// <summary>
+    /// Creates a file compression and SFTP upload workflow
+    /// </summary>
+    /// <param name="workflowName">Name of the workflow</param>
+    /// <param name="zipConfig">Configuration for ZIP compression</param>
+    /// <param name="sftpConfig">Configuration for SFTP upload</param>
+    /// <returns>A configured workflow ready for execution</returns>
+    public Workflow CreateFileToSftpWorkflow(
+        string workflowName,
+        ZipCompressionConfig zipConfig,
+        SftpUploadConfig sftpConfig)
+    {
+        ArgumentNullException.ThrowIfNull(workflowName);
+        ArgumentNullException.ThrowIfNull(zipConfig);
+        ArgumentNullException.ThrowIfNull(sftpConfig);
+
+        _logger?.LogInformation("Creating file-to-SFTP workflow: {WorkflowName}", workflowName);
+
+        var workflow = new Workflow(workflowName, "Compresses file to ZIP and uploads via SFTP");
+
+        // Step 1: Compress file
+        var compressStep = new Step(1, "Compress to ZIP",
+            executeFunction: async () => await _apiDataService.CompressFileAsync(zipConfig));
+
+        // Step 2: Upload via SFTP
+        var sftpUploadStep = new Step(2, "Upload via SFTP",
+            executeFunction: async () => await _sftpService.UploadFileAsync(sftpConfig));
+
+        workflow.AddStep(compressStep);
+        workflow.AddStep(sftpUploadStep);
+
+        return workflow;
+    }
+
+    /// <summary>
+    /// Creates a configuration template for common API-to-SFTP scenarios
+    /// </summary>
+    /// <param name="apiUrl">The API endpoint URL</param>
+    /// <param name="outputDirectory">Directory where files will be created</param>
+    /// <param name="sftpHost">SFTP server hostname</param>
+    /// <param name="sftpUsername">SFTP username</param>
+    /// <param name="sftpPassword">SFTP password (optional if using key auth)</param>
+    /// <param name="sftpRemoteDirectory">Remote directory on SFTP server</param>
+    /// <param name="authToken">Optional authentication token</param>
+    /// <returns>A complete set of configurations for the workflow</returns>
+    public (ApiDataFetchConfig apiConfig, FileCreationConfig fileConfig, ZipCompressionConfig zipConfig, SftpUploadConfig sftpConfig) 
+        CreateSftpConfigurations(string apiUrl, string outputDirectory, string sftpHost, string sftpUsername, 
+            string? sftpPassword, string sftpRemoteDirectory, string? authToken = null)
+    {
+        ArgumentNullException.ThrowIfNull(apiUrl);
+        ArgumentNullException.ThrowIfNull(outputDirectory);
+        ArgumentNullException.ThrowIfNull(sftpHost);
+        ArgumentNullException.ThrowIfNull(sftpUsername);
+        ArgumentNullException.ThrowIfNull(sftpRemoteDirectory);
+
+        var timestamp = DateTime.UtcNow.ToString("yyyyMMdd_HHmmss");
+        var jsonFileName = $"api_data_{timestamp}.json";
+        var zipFileName = $"api_data_{timestamp}.zip";
+        
+        var jsonFilePath = Path.Combine(outputDirectory, jsonFileName);
+        var zipFilePath = Path.Combine(outputDirectory, zipFileName);
+
+        var apiConfig = new ApiDataFetchConfig
+        {
+            ApiUrl = apiUrl,
+            AuthToken = authToken,
+            TimeoutSeconds = 30,
+            MaxRetries = 3,
+            Headers = new Dictionary<string, string>
+            {
+                { "Accept", "application/json" },
+                { "User-Agent", "WorkflowEngine/1.0" }
+            }
+        };
+
+        var fileConfig = new FileCreationConfig
+        {
+            OutputPath = jsonFilePath,
+            OverwriteExisting = true,
+            JsonOptions = new System.Text.Json.JsonSerializerOptions
+            {
+                WriteIndented = true,
+                PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase
+            }
+        };
+
+        var zipConfig = new ZipCompressionConfig
+        {
+            SourceFilePath = jsonFilePath,
+            ZipFilePath = zipFilePath,
+            CompressionLevel = System.IO.Compression.CompressionLevel.Optimal,
+            DeleteSourceAfterCompression = false
+        };
+
+        var sftpConfig = new SftpUploadConfig
+        {
+            Host = sftpHost,
+            Username = sftpUsername,
+            Password = sftpPassword,
+            LocalFilePath = zipFilePath,
+            RemoteDirectoryPath = sftpRemoteDirectory,
+            OverwriteExisting = true,
+            CreateRemoteDirectories = true,
+            ConnectionTimeoutSeconds = 30,
+            VerifyHostKey = false // Set to true in production with proper fingerprint
+        };
+
+        _logger?.LogInformation("Created SFTP configurations for API workflow");
+
+        return (apiConfig, fileConfig, zipConfig, sftpConfig);
     }
 
     /// <summary>
