@@ -24,6 +24,11 @@ public sealed class WorkflowDbContext : DbContext
     public DbSet<WorkflowExecution> WorkflowExecutions { get; set; } = null!;
 
     /// <summary>
+    /// Gets or sets the Users DbSet
+    /// </summary>
+    public DbSet<User> Users { get; set; } = null!;
+
+    /// <summary>
     /// Initializes a new instance of the WorkflowDbContext class
     /// </summary>
     /// <param name="options">The DbContext options</param>
@@ -40,6 +45,7 @@ public sealed class WorkflowDbContext : DbContext
         ConfigureWorkflowEntity(modelBuilder);
         ConfigureStepEntity(modelBuilder);
         ConfigureWorkflowExecutionEntity(modelBuilder);
+        ConfigureUserEntity(modelBuilder);
         
         base.OnModelCreating(modelBuilder);
     }
@@ -132,6 +138,58 @@ public sealed class WorkflowDbContext : DbContext
                 .WithMany()
                 .HasForeignKey(we => we.WorkflowId)
                 .OnDelete(DeleteBehavior.Cascade);
+        });
+    }
+
+    /// <summary>
+    /// Configures the User entity
+    /// </summary>
+    /// <param name="modelBuilder">The model builder</param>
+    private static void ConfigureUserEntity(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<User>(entity =>
+        {
+            entity.HasKey(u => u.Id);
+            
+            entity.Property(u => u.Username)
+                .IsRequired()
+                .HasMaxLength(50);
+                
+            entity.Property(u => u.Email)
+                .IsRequired()
+                .HasMaxLength(255);
+                
+            entity.Property(u => u.PasswordHash)
+                .IsRequired()
+                .HasMaxLength(255);
+                
+            entity.Property(u => u.Role)
+                .IsRequired()
+                .HasMaxLength(20);
+                
+            entity.Property(u => u.IsActive)
+                .IsRequired()
+                .HasDefaultValue(true);
+                
+            entity.Property(u => u.CreatedAt)
+                .IsRequired();
+                
+            entity.Property(u => u.UpdatedAt)
+                .IsRequired();
+
+            // Create unique index on username
+            entity.HasIndex(u => u.Username)
+                .IsUnique()
+                .HasDatabaseName("IX_Users_Username");
+                
+            // Create unique index on email
+            entity.HasIndex(u => u.Email)
+                .IsUnique()
+                .HasDatabaseName("IX_Users_Email");
+
+            // Ignore navigation properties to avoid circular references
+            entity.Ignore(u => u.CreatedWorkflows);
+            entity.Ignore(u => u.StartedExecutions);
         });
     }
 

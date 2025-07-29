@@ -57,6 +57,15 @@ public sealed class Workflow
     public IReadOnlyList<Step> Steps => _steps.AsReadOnly();
 
     /// <summary>
+    /// Gets the collection of steps in this workflow
+    /// </summary>
+    /// <returns>Read-only collection of steps</returns>
+    public IReadOnlyList<Step> GetSteps()
+    {
+        return Steps;
+    }
+
+    /// <summary>
     /// Initializes a new instance of the Workflow class
     /// </summary>
     public Workflow()
