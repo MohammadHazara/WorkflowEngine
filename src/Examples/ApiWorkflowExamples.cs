@@ -288,7 +288,7 @@ public static class ApiWorkflowExamples
             
             var result = await step.ExecuteAsync();
             var stepDuration = DateTime.UtcNow - stepStart;
-            stepTimes.Add((step.Name, stepDuration));
+            stepTimes.Add((step.Name ?? "Unknown Step", stepDuration));
             
             if (result)
             {

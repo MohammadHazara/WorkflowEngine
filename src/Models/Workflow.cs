@@ -10,7 +10,7 @@ namespace WorkflowEngine.Models;
 /// <summary>
 /// Represents a workflow containing multiple steps that can be executed sequentially
 /// </summary>
-public sealed class Workflow
+public class Workflow
 {
     /// <summary>
     /// Gets or sets the unique identifier for the workflow

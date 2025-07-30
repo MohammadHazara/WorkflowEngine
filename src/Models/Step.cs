@@ -6,7 +6,7 @@ namespace WorkflowEngine.Models;
 /// <summary>
 /// Represents a workflow step with execution delegates and metadata
 /// </summary>
-public sealed class Step
+public class Step
 {
     /// <summary>
     /// Gets or sets the unique identifier for the step
@@ -75,7 +75,7 @@ public sealed class Step
     /// Executes the step and invokes appropriate callbacks based on the result
     /// </summary>
     /// <returns>True if execution was successful, false otherwise</returns>
-    public async Task<bool> ExecuteAsync()
+    public virtual async Task<bool> ExecuteAsync()
     {
         try
         {
@@ -142,7 +142,7 @@ public sealed class Step
     /// <summary>
     /// Updates the timestamp when the step is modified
     /// </summary>
-    public void UpdateTimestamp()
+    public virtual void UpdateTimestamp()
     {
         UpdatedAt = DateTime.UtcNow;
     }

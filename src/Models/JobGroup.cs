@@ -43,16 +43,13 @@ public sealed class JobGroup
     /// </summary>
     public bool IsActive { get; set; }
 
-    /// <summary>
-    /// Gets or sets the collection of jobs in this group
-    /// </summary>
-    private readonly List<Job> _jobs;
+    private List<Job>? _jobs;
 
     /// <summary>
     /// Gets the read-only view of jobs
     /// </summary>
     [NotMapped]
-    public IReadOnlyList<Job> Jobs => _jobs.AsReadOnly();
+    public IReadOnlyList<Job> Jobs => (_jobs ??= JobsCollection?.ToList() ?? new List<Job>()).AsReadOnly();
 
     /// <summary>
     /// Navigation property for Entity Framework
@@ -64,7 +61,6 @@ public sealed class JobGroup
     /// </summary>
     public JobGroup()
     {
-        _jobs = new List<Job>();
         CreatedAt = DateTime.UtcNow;
         UpdatedAt = DateTime.UtcNow;
         IsActive = true;
@@ -98,8 +94,11 @@ public sealed class JobGroup
         }
 
         job.JobGroupId = Id;
-        _jobs.Add(job);
         JobsCollection.Add(job);
+        
+        // Synchronize private collection
+        _jobs?.Add(job);
+        
         UpdateTimestamp();
     }
 
@@ -107,18 +106,19 @@ public sealed class JobGroup
     /// Removes a job from the group by ID
     /// </summary>
     /// <param name="jobId">The ID of the job to remove</param>
-    /// <returns>True if job was removed, false if not found</returns>
+    /// <returns>True if the job was removed, false if not found</returns>
     public bool RemoveJob(int jobId)
     {
-        var jobToRemove = FindJobById(jobId);
-        if (jobToRemove is null)
+        var job = FindJobById(jobId);
+        if (job is null)
         {
             return false;
         }
 
-        var removed = _jobs.Remove(jobToRemove) && JobsCollection.Remove(jobToRemove);
+        var removed = JobsCollection.Remove(job);
         if (removed)
         {
+            _jobs?.Remove(job);
             UpdateTimestamp();
         }
 
@@ -126,13 +126,13 @@ public sealed class JobGroup
     }
 
     /// <summary>
-    /// Gets a job by its ID
+    /// Checks if a job with the specified ID exists in the group
     /// </summary>
-    /// <param name="jobId">The ID of the job to retrieve</param>
-    /// <returns>The job if found, null otherwise</returns>
-    public Job? GetJobById(int jobId)
+    /// <param name="jobId">The job ID to check</param>
+    /// <returns>True if job exists, false otherwise</returns>
+    public bool ContainsJobWithId(int jobId)
     {
-        return FindJobById(jobId);
+        return JobsCollection.Any(j => j.Id == jobId);
     }
 
     /// <summary>
@@ -141,16 +141,93 @@ public sealed class JobGroup
     /// <returns>The number of jobs</returns>
     public int GetJobCount()
     {
-        return _jobs.Count;
+        return JobsCollection.Count;
     }
 
     /// <summary>
-    /// Checks if the job group contains any jobs
+    /// Checks if the job group has any jobs
     /// </summary>
-    /// <returns>True if job group has jobs, false otherwise</returns>
+    /// <returns>True if the group contains at least one job, false otherwise</returns>
     public bool HasJobs()
     {
-        return _jobs.Count > 0;
+        return JobsCollection.Count > 0;
+    }
+
+    /// <summary>
+    /// Gets the total number of active jobs in the group
+    /// </summary>
+    /// <returns>The number of active jobs</returns>
+    public int GetActiveJobCount()
+    {
+        return JobsCollection.Count(j => j.IsActive);
+    }
+
+    /// <summary>
+    /// Gets all active jobs ordered by execution order
+    /// </summary>
+    /// <returns>List of active jobs</returns>
+    public IEnumerable<Job> GetActiveJobsOrdered()
+    {
+        return JobsCollection.Where(j => j.IsActive)
+                           .OrderBy(j => j.ExecutionOrder)
+                           .ThenBy(j => j.Name);
+    }
+
+    /// <summary>
+    /// Gets jobs by type
+    /// </summary>
+    /// <param name="jobType">The job type to filter by</param>
+    /// <returns>Jobs of the specified type</returns>
+    public IEnumerable<Job> GetJobsByType(string jobType)
+    {
+        ArgumentNullException.ThrowIfNull(jobType);
+        return JobsCollection.Where(j => j.JobType.Equals(jobType, StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <summary>
+    /// Deactivates all jobs in the group
+    /// </summary>
+    public void DeactivateAllJobs()
+    {
+        foreach (var job in JobsCollection)
+        {
+            job.IsActive = false;
+            job.UpdateTimestamp();
+        }
+        UpdateTimestamp();
+    }
+
+    /// <summary>
+    /// Activates all jobs in the group
+    /// </summary>
+    public void ActivateAllJobs()
+    {
+        foreach (var job in JobsCollection)
+        {
+            job.IsActive = true;
+            job.UpdateTimestamp();
+        }
+        UpdateTimestamp();
+    }
+
+    /// <summary>
+    /// Reorders jobs in the group
+    /// </summary>
+    /// <param name="jobOrders">Dictionary of job ID to execution order</param>
+    public void ReorderJobs(Dictionary<int, int> jobOrders)
+    {
+        ArgumentNullException.ThrowIfNull(jobOrders);
+
+        foreach (var kvp in jobOrders)
+        {
+            var job = FindJobById(kvp.Key);
+            if (job is not null)
+            {
+                job.ExecutionOrder = kvp.Value;
+                job.UpdateTimestamp();
+            }
+        }
+        UpdateTimestamp();
     }
 
     /// <summary>
@@ -158,35 +235,9 @@ public sealed class JobGroup
     /// </summary>
     public void ClearJobs()
     {
-        _jobs.Clear();
         JobsCollection.Clear();
+        _jobs?.Clear();
         UpdateTimestamp();
-    }
-
-    /// <summary>
-    /// Executes all jobs in the group sequentially
-    /// </summary>
-    /// <param name="cancellationToken">Token to cancel the operation</param>
-    /// <returns>True if all jobs executed successfully, false otherwise</returns>
-    public async Task<bool> ExecuteAsync(CancellationToken cancellationToken = default)
-    {
-        if (!HasJobs())
-        {
-            return true;
-        }
-
-        foreach (var job in _jobs.OrderBy(j => j.ExecutionOrder))
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-
-            var jobResult = await ExecuteJobSafelyAsync(job, cancellationToken);
-            if (!jobResult)
-            {
-                return false;
-            }
-        }
-
-        return true;
     }
 
     /// <summary>
@@ -213,34 +264,6 @@ public sealed class JobGroup
     /// <returns>The job if found, null otherwise</returns>
     private Job? FindJobById(int jobId)
     {
-        return _jobs.FirstOrDefault(j => j.Id == jobId);
-    }
-
-    /// <summary>
-    /// Checks if a job with the given ID exists
-    /// </summary>
-    /// <param name="jobId">The ID to check</param>
-    /// <returns>True if job exists, false otherwise</returns>
-    private bool ContainsJobWithId(int jobId)
-    {
-        return _jobs.Any(j => j.Id == jobId);
-    }
-
-    /// <summary>
-    /// Executes a job with error handling
-    /// </summary>
-    /// <param name="job">The job to execute</param>
-    /// <param name="cancellationToken">Token to cancel the operation</param>
-    /// <returns>True if execution was successful, false otherwise</returns>
-    private static async Task<bool> ExecuteJobSafelyAsync(Job job, CancellationToken cancellationToken)
-    {
-        try
-        {
-            return await job.ExecuteAsync(cancellationToken);
-        }
-        catch
-        {
-            return false;
-        }
+        return JobsCollection.FirstOrDefault(j => j.Id == jobId);
     }
 }

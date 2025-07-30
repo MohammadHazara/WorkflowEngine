@@ -46,7 +46,94 @@ public sealed class JobRepositoryService
     }
 
     /// <summary>
-    /// Retrieves all job groups with optional pagination
+    /// Gets the total count of active job groups
+    /// </summary>
+    /// <returns>The total count of active job groups</returns>
+    public async Task<int> GetJobGroupsCountAsync()
+    {
+        try
+        {
+            _logger?.LogDebug("Getting total count of active job groups");
+            
+            var count = await _context.JobGroups
+                .AsNoTracking()
+                .Where(jg => jg.IsActive)
+                .CountAsync();
+
+            _logger?.LogDebug("Total active job groups count: {Count}", count);
+            return count;
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Error getting job groups count");
+            throw new InvalidOperationException("Failed to get job groups count", ex);
+        }
+    }
+
+    /// <summary>
+    /// Retrieves job groups with pagination and total count
+    /// </summary>
+    /// <param name="skip">Number of records to skip</param>
+    /// <param name="take">Number of records to take</param>
+    /// <param name="includeJobs">Whether to include jobs in the result</param>
+    /// <returns>Paginated job groups result with total count</returns>
+    public async Task<(List<JobGroup> JobGroups, int TotalCount)> GetJobGroupsWithCountAsync(int skip = 0, int take = 100, bool includeJobs = false)
+    {
+        try
+        {
+            _logger?.LogDebug("Retrieving job groups with skip: {Skip}, take: {Take}, includeJobs: {IncludeJobs}", 
+                skip, take, includeJobs);
+
+            // Validate input parameters
+            if (skip < 0)
+            {
+                _logger?.LogWarning("Invalid skip parameter: {Skip}. Setting to 0.", skip);
+                skip = 0;
+            }
+
+            if (take <= 0 || take > 1000)
+            {
+                _logger?.LogWarning("Invalid take parameter: {Take}. Setting to 100.", take);
+                take = 100;
+            }
+
+            // Get total count first
+            var totalCount = await GetJobGroupsCountAsync();
+
+            var query = _context.JobGroups.AsNoTracking();
+
+            if (includeJobs)
+            {
+                _logger?.LogDebug("Including jobs and tasks in the query");
+                query = query.Include(jg => jg.JobsCollection)
+                             .ThenInclude(j => j.TasksCollection);
+            }
+
+            var jobGroups = await query.Where(jg => jg.IsActive)
+                                      .OrderBy(jg => jg.CreatedAt)
+                                      .Skip(skip)
+                                      .Take(take)
+                                      .ToListAsync();
+
+            _logger?.LogInformation("Successfully retrieved {Count} job groups out of {TotalCount} total", 
+                jobGroups.Count, totalCount);
+            
+            return (jobGroups, totalCount);
+        }
+        catch (InvalidOperationException ex)
+        {
+            _logger?.LogError(ex, "Database operation failed while retrieving job groups");
+            throw new InvalidOperationException("Failed to retrieve job groups due to database operation error", ex);
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Unexpected error occurred while retrieving job groups");
+            throw new InvalidOperationException("An unexpected error occurred while retrieving job groups", ex);
+        }
+    }
+
+    /// <summary>
+    /// Retrieves all job groups with optional pagination (legacy method for backward compatibility)
     /// </summary>
     /// <param name="skip">Number of records to skip</param>
     /// <param name="take">Number of records to take</param>
@@ -54,21 +141,8 @@ public sealed class JobRepositoryService
     /// <returns>List of job groups</returns>
     public async Task<List<JobGroup>> GetJobGroupsAsync(int skip = 0, int take = 100, bool includeJobs = false)
     {
-        _logger?.LogDebug("Retrieving job groups with skip: {Skip}, take: {Take}", skip, take);
-
-        var query = _context.JobGroups.AsNoTracking();
-
-        if (includeJobs)
-        {
-            query = query.Include(jg => jg.JobsCollection)
-                         .ThenInclude(j => j.TasksCollection);
-        }
-
-        return await query.Where(jg => jg.IsActive)
-                         .OrderBy(jg => jg.CreatedAt)
-                         .Skip(skip)
-                         .Take(take)
-                         .ToListAsync();
+        var (jobGroups, _) = await GetJobGroupsWithCountAsync(skip, take, includeJobs);
+        return jobGroups;
     }
 
     /// <summary>

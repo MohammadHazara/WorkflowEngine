@@ -9,7 +9,7 @@ namespace WorkflowEngine.Services
     /// <summary>
     /// Service for handling step execution with performance optimization and error handling
     /// </summary>
-    public sealed class StepHandler : IStepHandler
+    public class StepHandler : IStepHandler
     {
         private readonly ILogger<StepHandler>? _logger;
         private const int DefaultExecutionPriority = 1;

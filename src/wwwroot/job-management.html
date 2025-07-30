@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Job Management - Workflow Engine</title>
+    
+    <!-- Favicon and Touch Icons -->
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+    <link rel="icon" type="image/png" sizes="192x192" href="/android-chrome-192x192.png">
+    <link rel="icon" type="image/png" sizes="512x512" href="/android-chrome-512x512.png">
+    <meta name="theme-color" content="#2563eb">
+    
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .job-card {
+            transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+        }
+        .job-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+        .task-item {
+            border-left: 4px solid #007bff;
+            margin-bottom: 8px;
+        }
+        .task-item.task-fetch { border-left-color: #28a745; }
+        .task-item.task-file { border-left-color: #ffc107; }
+        .task-item.task-compress { border-left-color: #fd7e14; }
+        .task-item.task-sftp { border-left-color: #6610f2; }
+        .status-badge {
+            font-size: 0.75rem;
+        }
+        .execution-progress {
+            height: 4px;
+            background: #e9ecef;
+            border-radius: 2px;
+            overflow: hidden;
+        }
+        .execution-progress-bar {
+            height: 100%;
+            background: linear-gradient(90deg, #007bff, #28a745);
+            transition: width 0.3s ease;
+        }
+        .sidebar {
+            min-height: 100vh;
+            background: #f8f9fa;
+            border-right: 1px solid #dee2e6;
+        }
+        .main-content {
+            flex: 1;
+            overflow-y: auto;
+        }
+        .task-template {
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .task-template:hover {
+            background-color: #e3f2fd;
+            border-color: #2196f3;
+        }
+        .task-template.selected {
+            background-color: #bbdefb;
+            border-color: #1976d2;
+        }
+        .modal-lg {
+            max-width: 800px;
+        }
+        .json-editor {
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+        }
+        .loading-spinner {
+            display: none;
+        }
+        .fade-in {
+            animation: fadeIn 0.3s ease-in;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid">
+        <div class="row">
+            <!-- Sidebar -->
+            <div class="col-md-3 sidebar">
+                <div class="p-3">
+                    <!-- Navigation Menu -->
+                    <div class="mb-3">
+                        <div class="dropdown">
+                            <button class="btn btn-outline-primary dropdown-toggle w-100" type="button" data-bs-toggle="dropdown">
+                                <i class="fas fa-bars me-1"></i> Navigation
+                            </button>
+                            <ul class="dropdown-menu w-100">
+                                <li><a class="dropdown-item" href="index.html">
+                                    <i class="fas fa-dashboard me-2"></i>Dashboard
+                                </a></li>
+                                <li><a class="dropdown-item active" href="job-management.html">
+                                    <i class="fas fa-tasks me-2"></i>Job Management
+                                </a></li>
+                                <li><hr class="dropdown-divider"></li>
+                                <li><a class="dropdown-item" href="/swagger" target="_blank">
+                                    <i class="fas fa-code me-2"></i>API Documentation
+                                </a></li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <h5 class="mb-3">
+                        <i class="fas fa-cogs"></i> Job Management
+                    </h5>
+                    
+                    <!-- Job Groups Filter -->
+                    <div class="mb-3">
+                        <label for="jobGroupFilter" class="form-label">Filter by Group</label>
+                        <select class="form-select" id="jobGroupFilter">
+                            <option value="">All Groups</option>
+                        </select>
+                    </div>
+
+                    <!-- Quick Actions -->
+                    <div class="mb-3">
+                        <button class="btn btn-primary btn-sm w-100 mb-2" onclick="showCreateJobGroupModal()">
+                            <i class="fas fa-folder-plus"></i> New Job Group
+                        </button>
+                        <button class="btn btn-success btn-sm w-100" onclick="showCreateJobModal()">
+                            <i class="fas fa-plus"></i> New Job
+                        </button>
+                    </div>
+
+                    <!-- Statistics -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h6 class="mb-0">Quick Stats</h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between mb-2">
+                                <span>Job Groups:</span>
+                                <span id="totalJobGroups" class="badge bg-primary">0</span>
+                            </div>
+                            <div class="d-flex justify-content-between mb-2">
+                                <span>Total Jobs:</span>
+                                <span id="totalJobs" class="badge bg-info">0</span>
+                            </div>
+                            <div class="d-flex justify-content-between">
+                                <span>Running Jobs:</span>
+                                <span id="runningJobs" class="badge bg-warning">0</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Main Content -->
+            <div class="col-md-9 main-content">
+                <div class="p-3">
+                    <!-- Header -->
+                    <div class="d-flex justify-content-between align-items-center mb-4">
+                        <h3>Job Groups & Jobs</h3>
+                        <div>
+                            <button class="btn btn-outline-secondary" onclick="refreshData()">
+                                <i class="fas fa-refresh"></i> Refresh
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Loading Spinner -->
+                    <div class="text-center loading-spinner" id="loadingSpinner">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <p class="mt-2">Loading job data...</p>
+                    </div>
+
+                    <!-- Job Groups Container -->
+                    <div id="jobGroupsContainer">
+                        <!-- Job groups will be dynamically loaded here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Create Job Group Modal -->
+    <div class="modal fade" id="createJobGroupModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Create New Job Group</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="createJobGroupForm">
+                        <div class="mb-3">
+                            <label for="jobGroupName" class="form-label">Name *</label>
+                            <input type="text" class="form-control" id="jobGroupName" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="jobGroupDescription" class="form-label">Description</label>
+                            <textarea class="form-control" id="jobGroupDescription" rows="3"></textarea>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" onclick="createJobGroup()">Create Group</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Create Job Modal -->
+    <div class="modal fade" id="createJobModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Create New Job</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="createJobForm">
+                        <!-- Job Basic Info -->
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label for="jobName" class="form-label">Job Name *</label>
+                                <input type="text" class="form-control" id="jobName" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="jobGroup" class="form-label">Job Group *</label>
+                                <select class="form-select" id="jobGroup" required>
+                                    <option value="">Select a job group</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label for="jobType" class="form-label">Job Type</label>
+                                <select class="form-select" id="jobType">
+                                    <option value="DataPipeline">Data Pipeline</option>
+                                    <option value="ApiIntegration">API Integration</option>
+                                    <option value="FileProcessing">File Processing</option>
+                                    <option value="General">General</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="executionOrder" class="form-label">Execution Order</label>
+                                <input type="number" class="form-control" id="executionOrder" value="1" min="1">
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="jobDescription" class="form-label">Description</label>
+                            <textarea class="form-control" id="jobDescription" rows="2"></textarea>
+                        </div>
+
+                        <!-- Tasks Section -->
+                        <div class="mb-4">
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <h6>Tasks</h6>
+                                <button type="button" class="btn btn-sm btn-outline-primary" onclick="showAddTaskModal()">
+                                    <i class="fas fa-plus"></i> Add Task
+                                </button>
+                            </div>
+                            <div id="selectedTasks" class="border rounded p-3 min-height-100">
+                                <p class="text-muted text-center mb-0">No tasks added yet. Click "Add Task" to get started.</p>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" onclick="createJob()">Create Job</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Task Modal -->
+    <div class="modal fade" id="addTaskModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Add Task to Job</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row">
+                        <!-- Task Templates -->
+                        <div class="col-md-4">
+                            <h6>Task Templates</h6>
+                            <div id="taskTemplates">
+                                <!-- Task templates will be loaded here -->
+                            </div>
+                        </div>
+                        
+                        <!-- Task Configuration -->
+                        <div class="col-md-8">
+                            <h6>Task Configuration</h6>
+                            <div id="taskConfigSection" style="display: none;">
+                                <div class="mb-3">
+                                    <label for="taskName" class="form-label">Task Name *</label>
+                                    <input type="text" class="form-control" id="taskName" required>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="taskDescription" class="form-label">Description</label>
+                                    <textarea class="form-control" id="taskDescription" rows="2"></textarea>
+                                </div>
+                                <div class="row mb-3">
+                                    <div class="col-md-6">
+                                        <label for="taskExecutionOrder" class="form-label">Execution Order</label>
+                                        <input type="number" class="form-control" id="taskExecutionOrder" value="1" min="1">
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label for="taskTimeout" class="form-label">Timeout (seconds)</label>
+                                        <input type="number" class="form-control" id="taskTimeout" value="300" min="1">
+                                    </div>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="taskConfig" class="form-label">Configuration (JSON)</label>
+                                    <textarea class="form-control json-editor" id="taskConfig" rows="8"></textarea>
+                                </div>
+                            </div>
+                            <div id="selectTaskPrompt" class="text-center text-muted py-5">
+                                <i class="fas fa-arrow-left fa-2x mb-3"></i>
+                                <p>Select a task template from the left to configure it</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" onclick="addTaskToJob()" style="display: none;" id="addTaskBtn">Add Task</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Job Details Modal -->
+    <div class="modal fade" id="jobDetailsModal" tabindex="-1">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="jobDetailsTitle">Job Details</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body" id="jobDetailsContent">
+                    <!-- Job details will be loaded here -->
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="button" class="btn btn-success" onclick="executeCurrentJob()" id="executeJobBtn">
+                        <i class="fas fa-play"></i> Execute Job
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div class="toast-container position-fixed top-0 end-0 p-3">
+        <div id="notificationToast" class="toast" role="alert">
+            <div class="toast-header">
+                <i class="fas fa-info-circle text-primary me-2"></i>
+                <strong class="me-auto">Notification</strong>
+                <button type="button" class="btn-close" data-bs-dismiss="toast"></button>
+            </div>
+            <div class="toast-body" id="toastMessage">
+                <!-- Toast message will be inserted here -->
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="job-management.js"></script>
+</body>
+</html>

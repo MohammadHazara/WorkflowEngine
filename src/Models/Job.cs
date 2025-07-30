@@ -65,16 +65,13 @@ public sealed class Job
     /// </summary>
     public JobGroup? JobGroup { get; set; }
 
-    /// <summary>
-    /// Gets or sets the collection of tasks in this job
-    /// </summary>
-    private readonly List<JobTask> _tasks;
+    private List<JobTask>? _tasks;
 
     /// <summary>
     /// Gets the read-only view of tasks
     /// </summary>
     [NotMapped]
-    public IReadOnlyList<JobTask> Tasks => _tasks.AsReadOnly();
+    public IReadOnlyList<JobTask> Tasks => (_tasks ??= TasksCollection?.ToList() ?? new List<JobTask>()).AsReadOnly();
 
     /// <summary>
     /// Navigation property for Entity Framework
@@ -91,7 +88,6 @@ public sealed class Job
     /// </summary>
     public Job()
     {
-        _tasks = new List<JobTask>();
         CreatedAt = DateTime.UtcNow;
         UpdatedAt = DateTime.UtcNow;
         IsActive = true;
@@ -127,8 +123,11 @@ public sealed class Job
         }
 
         task.JobId = Id;
-        _tasks.Add(task);
         TasksCollection.Add(task);
+        
+        // Synchronize private collection
+        _tasks?.Add(task);
+        
         UpdateTimestamp();
     }
 
@@ -145,9 +144,10 @@ public sealed class Job
             return false;
         }
 
-        var removed = _tasks.Remove(taskToRemove) && TasksCollection.Remove(taskToRemove);
+        var removed = TasksCollection.Remove(taskToRemove);
         if (removed)
         {
+            _tasks?.Remove(taskToRemove);
             UpdateTimestamp();
         }
 
@@ -170,7 +170,7 @@ public sealed class Job
     /// <returns>The number of tasks</returns>
     public int GetTaskCount()
     {
-        return _tasks.Count;
+        return TasksCollection.Count;
     }
 
     /// <summary>
@@ -179,7 +179,7 @@ public sealed class Job
     /// <returns>True if job has tasks, false otherwise</returns>
     public bool HasTasks()
     {
-        return _tasks.Count > 0;
+        return TasksCollection.Count > 0;
     }
 
     /// <summary>
@@ -187,8 +187,8 @@ public sealed class Job
     /// </summary>
     public void ClearTasks()
     {
-        _tasks.Clear();
         TasksCollection.Clear();
+        _tasks?.Clear();
         UpdateTimestamp();
     }
 
@@ -204,7 +204,7 @@ public sealed class Job
             return true;
         }
 
-        foreach (var task in _tasks.OrderBy(t => t.ExecutionOrder))
+        foreach (var task in TasksCollection.OrderBy(t => t.ExecutionOrder))
         {
             cancellationToken.ThrowIfCancellationRequested();
 
@@ -275,7 +275,7 @@ public sealed class Job
     /// <returns>The task if found, null otherwise</returns>
     private JobTask? FindTaskById(int taskId)
     {
-        return _tasks.FirstOrDefault(t => t.Id == taskId);
+        return TasksCollection.FirstOrDefault(t => t.Id == taskId);
     }
 
     /// <summary>
@@ -285,7 +285,7 @@ public sealed class Job
     /// <returns>True if task exists, false otherwise</returns>
     private bool ContainsTaskWithId(int taskId)
     {
-        return _tasks.Any(t => t.Id == taskId);
+        return TasksCollection.Any(t => t.Id == taskId);
     }
 
     /// <summary>

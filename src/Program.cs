@@ -44,7 +44,16 @@ builder.Services.AddDbContext<WorkflowDbContext>(options =>
 builder.Services.AddScoped<IDashboardService, DashboardService>();
 builder.Services.AddScoped<IWorkflowExecutor, WorkflowExecutor>();
 builder.Services.AddScoped<IStepHandler, StepHandler>();
+builder.Services.AddScoped<IAuthenticationService, AuthenticationService>();
+builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<DataSeedingService>();
+builder.Services.AddScoped<PerformanceMetricsService>();
+builder.Services.AddScoped<SftpService>();
+
+// Register job management services
+builder.Services.AddScoped<JobRepositoryService>();
+builder.Services.AddScoped<JobBuilder>();
+builder.Services.AddScoped<JobExecutor>();
 
 // Register HTTP client and API services
 builder.Services.AddHttpClient<ApiDataService>(client =>
@@ -103,6 +112,14 @@ app.Use(async (context, next) =>
 app.UseHttpsRedirection();
 app.UseRateLimiter();
 app.UseCors("DashboardPolicy");
+
+// Serve static files for dashboard with default file mapping
+app.UseDefaultFiles(new DefaultFilesOptions
+{
+    DefaultFileNames = { "index.html" }
+});
+app.UseStaticFiles();
+
 app.UseAuthorization();
 
 // Add health check endpoints
@@ -114,18 +131,26 @@ app.MapHealthChecks("/health/ready", new Microsoft.AspNetCore.Diagnostics.Health
 
 app.MapControllers();
 
-// Serve static files for dashboard
-app.UseDefaultFiles();
-app.UseStaticFiles();
-
-// Ensure database is created and seeded
-using (var scope = app.Services.CreateScope())
+// Ensure database is created and seeded with improved error handling
+try
 {
+    using var scope = app.Services.CreateScope();
     var dbContext = scope.ServiceProvider.GetRequiredService<WorkflowDbContext>();
     var seedingService = scope.ServiceProvider.GetRequiredService<DataSeedingService>();
+    var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
     
-    await dbContext.EnsureDatabaseCreatedAsync();
+    logger.LogInformation("Initializing database...");
+    await dbContext.Database.EnsureCreatedAsync();
+    
+    logger.LogInformation("Seeding sample data...");
     await seedingService.SeedSampleDataAsync();
+    
+    logger.LogInformation("Database initialization completed successfully");
+}
+catch (Exception ex)
+{
+    var logger = app.Services.GetRequiredService<ILogger<Program>>();
+    logger.LogError(ex, "Failed to initialize database. Application will start but may not function correctly.");
 }
 
 Console.WriteLine("🚀 WorkflowEngine Web API Starting...");

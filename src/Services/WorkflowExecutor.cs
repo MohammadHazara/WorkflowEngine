@@ -10,7 +10,7 @@ namespace WorkflowEngine.Services
     /// <summary>
     /// Service for executing workflows with performance optimization and progress reporting
     /// </summary>
-    public sealed class WorkflowExecutor : IWorkflowExecutor
+    public class WorkflowExecutor : IWorkflowExecutor
     {
         private readonly IStepHandler _stepHandler;
         private readonly ILogger<WorkflowExecutor>? _logger;
